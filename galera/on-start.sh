@@ -1,5 +1,7 @@
 #! /bin/bash
 
+cp /configmap/* /etc/mysql/conf.d
+
 GALERA_CONF="${GALERA_CONF:-"/etc/mysql/conf.d/galera.cnf"}"
 
 if ! [ -f "${GALERA_CONF}" ]; then 
