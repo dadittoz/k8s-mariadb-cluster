@@ -66,6 +66,11 @@ _start_temporary_mysql() {
 
 	mysql=( mysql --protocol=socket -uroot -hlocalhost --socket=/var/run/mysqld/mysqld.sock )
 
+	if [ ! -z "$MYSQL_ROOT_PASSWORD" ]; then
+		mysql+=( -p"${MYSQL_ROOT_PASSWORD}" )
+	fi
+
+
 	for i in {30..0}; do
 		if echo 'SELECT 1' | "${mysql[@]}" &> /dev/null; then
 			break
@@ -216,10 +221,6 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 		echo
 
 		_start_temporary_mysql "$@"
-
-		if [ ! -z "$MYSQL_ROOT_PASSWORD" ]; then
-			mysql+=( -p"${MYSQL_ROOT_PASSWORD}" )
-		fi
 
 		"${mysql[@]}" <<-EOSQL
 			CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
