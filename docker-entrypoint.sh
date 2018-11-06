@@ -217,6 +217,10 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 
 		_start_temporary_mysql "$@"
 
+		if [ ! -z "$MYSQL_ROOT_PASSWORD" ]; then
+			mysql+=( -p"${MYSQL_ROOT_PASSWORD}" )
+		fi
+
 		"${mysql[@]}" <<-EOSQL
 			CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
 			GRANT PROCESS,RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
