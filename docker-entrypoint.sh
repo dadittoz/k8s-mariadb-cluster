@@ -137,7 +137,7 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 		mysql_install_db --datadir="$DATADIR" --rpm
 		echo 'Database initialized'
 
-		_start_temporary_mysql
+		_start_temporary_mysql "$@"
 
 		if [ -z "$MYSQL_INITDB_SKIP_TZINFO" ]; then
 			# sed is for https://bugs.mysql.com/bug.php?id=20545
@@ -215,7 +215,7 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 		echo 'Creating or updating XtraBackup User'
 		echo
 
-		_start_temporary_mysql
+		_start_temporary_mysql "$@"
 
 		"${mysql[@]}" <<-EOSQL
 			CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
