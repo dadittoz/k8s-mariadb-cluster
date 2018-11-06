@@ -60,6 +60,32 @@ _datadir() {
 	"$@" --verbose --help --log-bin-index="$(mktemp -u)" 2>/dev/null | awk '$1 == "datadir" { print $2; exit }'
 }
 
+_start_temporary_mysql() {
+	"$@" --skip-networking --socket=/var/run/mysqld/mysqld.sock &
+	pid="$!"
+
+	mysql=( mysql --protocol=socket -uroot -hlocalhost --socket=/var/run/mysqld/mysqld.sock )
+
+	for i in {30..0}; do
+		if echo 'SELECT 1' | "${mysql[@]}" &> /dev/null; then
+			break
+		fi
+		echo 'MySQL init process in progress...'
+		sleep 1
+	done
+	if [ "$i" = 0 ]; then
+		echo >&2 'MySQL init process failed.'
+		exit 1
+	fi
+}
+
+_stop_temporary_mysql() {
+	if ! kill -s TERM "$pid" || ! wait "$pid"; then
+		echo >&2 'MySQL init process failed.'
+		exit 1
+	fi
+}
+
 # allow the container to be started with `--user`
 if [ "$1" = 'mysqld' -a -z "$wantHelp" -a "$(id -u)" = '0' ]; then
 	_check_config "$@"
@@ -111,22 +137,7 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 		mysql_install_db --datadir="$DATADIR" --rpm
 		echo 'Database initialized'
 
-		"$@" --skip-networking --socket=/var/run/mysqld/mysqld.sock &
-		pid="$!"
-
-		mysql=( mysql --protocol=socket -uroot -hlocalhost --socket=/var/run/mysqld/mysqld.sock )
-
-		for i in {30..0}; do
-			if echo 'SELECT 1' | "${mysql[@]}" &> /dev/null; then
-				break
-			fi
-			echo 'MySQL init process in progress...'
-			sleep 1
-		done
-		if [ "$i" = 0 ]; then
-			echo >&2 'MySQL init process failed.'
-			exit 1
-		fi
+		_start_temporary_mysql
 
 		if [ -z "$MYSQL_INITDB_SKIP_TZINFO" ]; then
 			# sed is for https://bugs.mysql.com/bug.php?id=20545
@@ -182,15 +193,42 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 			echo
 		done
 
-		if ! kill -s TERM "$pid" || ! wait "$pid"; then
-			echo >&2 'MySQL init process failed.'
-			exit 1
-		fi
+		_stop_temporary_mysql
 
 		echo
 		echo 'MySQL init process done. Ready for start up.'
 		echo
 	fi
+
+	if [ -z "$SST_METHOD" ]; then
+	    SST_METHOD=rsync
+	fi
+
+	if [ "$SST_METHOD" = "xtrabackup-v2" ]; then
+		file_env 'XTRABACKUP_PASSWORD'
+		if [ -z "$XTRABACKUP_PASSWORD" ]; then
+			echo >&2 'error: SST_METHOD set to xtrabackup-v2, but no XTRABACKUP_PASSWORD specified'
+			exit 1
+		fi
+
+		echo
+		echo 'Creating or updating XtraBackup User'
+		echo
+
+		_start_temporary_mysql
+
+		"${mysql[@]}" <<-EOSQL
+			CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
+			GRANT PROCESS,RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
+			SET PASSWORD FOR 'xtrabackup'@'localhost' = PASSWORD('${XTRABACKUP_PASSWORD}');
+		EOSQL
+
+		_stop_temporary_mysql
+
+        set -- "$@" "--wsrep_sst_auth=xtrabackup:$XTRABACKUP_PASSWORD"
+	fi
+    set -- "$@" "--wsrep-sst-method=$SST_METHOD"
+
 fi
 
 exec "$@"
