@@ -66,11 +66,6 @@ _start_temporary_mysql() {
 
 	mysql=( mysql --protocol=socket -uroot -hlocalhost --socket=/var/run/mysqld/mysqld.sock )
 
-	if [ ! -z "$MYSQL_ROOT_PASSWORD" ]; then
-		mysql+=( -p"${MYSQL_ROOT_PASSWORD}" )
-	fi
-
-
 	for i in {30..0}; do
 		if echo 'SELECT 1' | "${mysql[@]}" &> /dev/null; then
 			break
@@ -197,6 +192,23 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 			esac
 			echo
 		done
+		if [ "$SST_METHOD" = "xtrabackup-v2" ]; then
+			file_env 'XTRABACKUP_PASSWORD'
+			if [ -z "$XTRABACKUP_PASSWORD" ]; then
+				echo >&2 'error: SST_METHOD set to xtrabackup-v2, but no XTRABACKUP_PASSWORD specified'
+				exit 1
+			fi
+
+			echo
+			echo 'Creating or updating XtraBackup User'
+			echo
+
+			"${mysql[@]}" <<-EOSQL
+				CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
+				GRANT PROCESS,RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
+				SET PASSWORD FOR 'xtrabackup'@'localhost' = PASSWORD('${XTRABACKUP_PASSWORD}');
+			EOSQL
+        fi
 
 		_stop_temporary_mysql
 
@@ -206,33 +218,15 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 	fi
 
 	if [ -z "$SST_METHOD" ]; then
-	    SST_METHOD=rsync
+		export SST_METHOD=rsync
 	fi
 
 	if [ "$SST_METHOD" = "xtrabackup-v2" ]; then
-		file_env 'XTRABACKUP_PASSWORD'
-		if [ -z "$XTRABACKUP_PASSWORD" ]; then
-			echo >&2 'error: SST_METHOD set to xtrabackup-v2, but no XTRABACKUP_PASSWORD specified'
-			exit 1
-		fi
-
-		echo
-		echo 'Creating or updating XtraBackup User'
-		echo
-
-		_start_temporary_mysql "$@"
-
-		"${mysql[@]}" <<-EOSQL
-			CREATE USER IF NOT EXISTS 'xtrabackup'@'localhost';
-			GRANT PROCESS,RELOAD,LOCK TABLES,REPLICATION CLIENT ON *.* TO 'xtrabackup'@'localhost';
-			SET PASSWORD FOR 'xtrabackup'@'localhost' = PASSWORD('${XTRABACKUP_PASSWORD}');
-		EOSQL
-
-		_stop_temporary_mysql
-
-        set -- "$@" "--wsrep_sst_auth=xtrabackup:$XTRABACKUP_PASSWORD"
+	    export SST_METHOD=xtrabackup-v2
+		set -- "$@" "--wsrep_sst_auth=xtrabackup:$XTRABACKUP_PASSWORD"
 	fi
-    set -- "$@" "--wsrep-sst-method=$SST_METHOD"
+
+	set -- "$@" "--wsrep-sst-method=$SST_METHOD"
 
 fi
 
