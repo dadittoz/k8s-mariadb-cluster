@@ -192,10 +192,10 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 			esac
 			echo
 		done
-		if [ "$SST_METHOD" = "xtrabackup-v2" ]; then
+		if [ "$SST_METHOD" = "mariabackup" ]; then
 			file_env 'XTRABACKUP_PASSWORD'
 			if [ -z "$XTRABACKUP_PASSWORD" ]; then
-				echo >&2 'error: SST_METHOD set to xtrabackup-v2, but no XTRABACKUP_PASSWORD specified'
+				echo >&2 'error: SST_METHOD set to mariabackup, but no XTRABACKUP_PASSWORD specified'
 				exit 1
 			fi
 
@@ -221,8 +221,8 @@ if [ "$1" = 'mysqld' -a -z "$wantHelp" ]; then
 		export SST_METHOD=rsync
 	fi
 
-	if [ "$SST_METHOD" = "xtrabackup-v2" ]; then
-	    export SST_METHOD=xtrabackup-v2
+	if [ "$SST_METHOD" = "mariabackup" ]; then
+	    export SST_METHOD=mariabackup
 		set -- "$@" "--wsrep_sst_auth=xtrabackup:$XTRABACKUP_PASSWORD"
 	fi
 
