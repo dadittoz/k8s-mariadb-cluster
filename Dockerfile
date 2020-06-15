@@ -1,7 +1,7 @@
 FROM mariadb:10.4
 
 RUN set -x && \
-    apt-get update && apt-get install -y --no-install-recommends ca-certificates wget percona-xtrabackup percona-toolkit && \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates wget && \
     rm -rf /var/lib/apt/lists/* && \
     \
     wget -O /usr/local/bin/peer-finder https://storage.googleapis.com/kubernetes-release/pets/peer-finder && \
